@@ -18,20 +18,20 @@ export const authOptions: NextAuthOptions = {
   ],
   session: { strategy: "database" },
   callbacks: {
-    async signIn({ user, account, profile }) {
+    async signIn({ user, profile }) {
       if (!tenantId) return false;
       const claims = profile as { tid?: string; oid?: string; preferred_username?: string; email?: string } | undefined;
-      if (claims?.tid && claims.tid !== tenantId) return false;
-      const email = (user.email || claims?.preferred_username || claims?.email || "").toLowerCase();
+      // Fail closed: the tenant claim must exist and match the configured Prezensa tenant.
+      if (!claims?.tid || claims.tid !== tenantId) return false;
+      const email = (user.email || claims.preferred_username || claims.email || "").toLowerCase();
       if (!email) return false;
       const adminEmails = (process.env.PREZENSA_ADMIN_EMAILS ?? "").split(",").map(v => v.trim().toLowerCase()).filter(Boolean);
       const existing = await prisma.user.findUnique({ where: { email } });
       if (existing && !existing.active) return false;
-      if (!existing && adminEmails.includes(email)) {
-        await prisma.user.updateMany({ where: { email }, data: { role: "ADMIN" } });
-      }
-      if (claims?.oid) {
-        await prisma.user.updateMany({ where: { email }, data: { entraObjectId: claims.oid } });
+      if (existing && adminEmails.includes(email) && existing.role !== "ADMIN") {
+        await prisma.user.update({ where: { id: existing.id }, data: { role: "ADMIN", ...(claims.oid ? { entraObjectId: claims.oid } : {}) } });
+      } else if (existing && claims.oid && existing.entraObjectId !== claims.oid) {
+        await prisma.user.update({ where: { id: existing.id }, data: { entraObjectId: claims.oid } });
       }
       return true;
     },
@@ -43,6 +43,15 @@ export const authOptions: NextAuthOptions = {
         (session.user as typeof session.user & { id: string; role: string }).role = dbUser.role;
       }
       return session;
+    }
+  },
+  events: {
+    async createUser({ user }) {
+      const email = (user.email ?? "").toLowerCase();
+      const adminEmails = (process.env.PREZENSA_ADMIN_EMAILS ?? "").split(",").map(v => v.trim().toLowerCase()).filter(Boolean);
+      if (email && adminEmails.includes(email)) {
+        await prisma.user.update({ where: { id: user.id }, data: { role: "ADMIN" } });
+      }
     }
   },
   pages: { signIn: "/login" }
