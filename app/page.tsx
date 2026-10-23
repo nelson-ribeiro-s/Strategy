@@ -10,7 +10,7 @@ export default async function HomePage() {
   return <main className="shell">
     <aside className="sidebar">
       <div className="brand">PREZENSA<span> / MANAGEMENT</span></div>
-      <nav><a className="selected" href="#scorecard">Scorecard</a><a href="/legacy.html">Cockpit · Rocks · Issues · L1 (protótipo)</a><a href="#account">Minha conta</a></nav>
+      <nav><a className="selected" href="#scorecard">Scorecard</a><a href="/legacy.html">Cockpit · Rocks · Issues · L1 (protótipo)</a><a href="#account">Minha conta</a>{session.user.role === "ADMIN" && <a href="/admin/users">Usuários e permissões</a>}</nav>
       <div className="side-note">PeopleTech · Gestão executiva</div>
     </aside>
     <section className="content">
