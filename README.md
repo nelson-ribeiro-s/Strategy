@@ -5,6 +5,8 @@ Aplicação em evolução para gestão executiva da Prezensa. A interface anteri
 ## Implementado nesta branch
 
 - Login Microsoft Entra ID configurado para tenant único.
+- Login adicional por usuário e senha com hashes bcrypt; credenciais podem ser definidas por administrador.
+- Atalho `admin` / `admin` disponível somente fora de produção para desenvolvimento local; é recusado quando `NODE_ENV=production`.
 - Perfis `ADMIN`, `EXECUTIVE` e `COLLABORATOR`; colaboradores começam com acesso de leitura ao Scorecard.
 - API protegida para leitura de objetivos, indicadores e histórico.
 - Edição persistida do nome do objetivo, nome/unidade do indicador, meta e valor atual.
@@ -27,6 +29,13 @@ Aplicação em evolução para gestão executiva da Prezensa. A interface anteri
 5. Gere o cliente e crie/atualize as tabelas: `npm run db:generate && npm run db:push`.
 6. (Opcional) Carregue indicadores de demonstração: `npm run db:seed`. Estes não são dados reais da Prezensa.
 7. Execute `npm run dev`.
+
+## Login por usuário e senha
+
+- Administradores podem definir um nome de usuário e uma senha para cada usuário já cadastrado pela tela Usuários e permissões.
+- Senhas são armazenadas como hashes bcrypt (nunca em texto puro).
+- O acesso fixo `admin` / `admin` existe apenas em ambientes diferentes de produção para facilitar testes locais. Ele não funciona com `NODE_ENV=production` e não deve ser usado para demonstrar ou publicar o sistema em ambiente real.
+- O login usa sessão JWT do NextAuth, necessária para o provider de credenciais. Papéis e status ativo são revalidados no banco durante a sessão.
 
 ## Segurança e perfis
 
