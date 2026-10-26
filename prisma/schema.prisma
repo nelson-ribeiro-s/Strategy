@@ -1,0 +1,154 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  ADMIN
+  EXECUTIVE
+  COLLABORATOR
+}
+
+model User {
+  id            String   @id @default(cuid())
+  name          String?
+  email         String?  @unique
+  username      String?  @unique
+  passwordHash  String?
+  emailVerified DateTime?
+  image         String?
+  entraObjectId String?  @unique
+  role          UserRole @default(COLLABORATOR)
+  active        Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  accounts      Account[]
+  sessions      Session[]
+  metricHistory MetricHistory[] @relation("MetricHistoryAuthor")
+  auditEvents   AuditEvent[]
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+  @@unique([identifier, token])
+}
+
+model Objective {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  sortOrder   Int      @default(0)
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  metrics     Metric[]
+}
+
+model Metric {
+  id          String   @id @default(cuid())
+  objectiveId String
+  name        String
+  unit        String   @default("")
+  targetValue Float
+  currentValue Float
+  sortOrder   Int      @default(0)
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  objective   Objective @relation(fields: [objectiveId], references: [id], onDelete: Cascade)
+  history     MetricHistory[]
+  @@index([objectiveId, active, sortOrder])
+}
+
+model MetricHistory {
+  id          String   @id @default(cuid())
+  metricId    String
+  value       Float
+  recordedAt  DateTime @default(now())
+  note        String?
+  createdById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  metric      Metric   @relation(fields: [metricId], references: [id], onDelete: Cascade)
+  createdBy   User?    @relation("MetricHistoryAuthor", fields: [createdById], references: [id], onDelete: SetNull)
+  @@index([metricId, recordedAt])
+}
+
+model Rock {
+  id          String   @id @default(cuid())
+  title       String
+  description String?
+  ownerId     String?
+  status      String   @default("ON_TRACK")
+  progress    Int      @default(0)
+  dueDate     DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Issue {
+  id          String   @id @default(cuid())
+  title       String
+  description String?
+  status      String   @default("OPEN")
+  priority    String   @default("MEDIUM")
+  ownerId     String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model L1Meeting {
+  id          String   @id @default(cuid())
+  title       String   @default("L1 — Leadership One")
+  scheduledAt DateTime?
+  status      String   @default("PLANNED")
+  notes       String?  @db.Text
+  decisions   String?  @db.Text
+  todos       String?  @db.Text
+  teamsMeetingUrl String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model AuditEvent {
+  id         String   @id @default(cuid())
+  userId     String?
+  action     String
+  entityType String
+  entityId   String
+  details    Json?
+  createdAt  DateTime @default(now())
+  user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  @@index([entityType, entityId, createdAt])
+}
