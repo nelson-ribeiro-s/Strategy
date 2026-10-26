@@ -1,4 +1,5 @@
 import "next-auth";
+import "next-auth/jwt";
 import { DefaultSession } from "next-auth";
 
 declare module "next-auth" {
@@ -7,5 +8,10 @@ declare module "next-auth" {
       id: string;
       role: "ADMIN" | "EXECUTIVE" | "COLLABORATOR";
     } & DefaultSession["user"];
+  }
+}
+declare module "next-auth/jwt" {
+  interface JWT {
+    role?: "ADMIN" | "EXECUTIVE" | "COLLABORATOR";
   }
 }
