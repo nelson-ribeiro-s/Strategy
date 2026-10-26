@@ -1,10 +1,14 @@
-import type { NextAuthOptions } from "next-auth";
+import type { NextAuthOptions, User as NextAuthUser } from "next-auth";
 import AzureADProvider from "next-auth/providers/azure-ad";
+import CredentialsProvider from "next-auth/providers/credentials";
 import { PrismaAdapter } from "@next-auth/prisma-adapter";
+import { compare, hash } from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 
 const tenantId = process.env.AZURE_AD_TENANT_ID;
 if (!tenantId) console.warn("AZURE_AD_TENANT_ID is not configured; Microsoft sign-in will not work.");
+
+type AppUser = NextAuthUser & { role?: "ADMIN" | "EXECUTIVE" | "COLLABORATOR" };
 
 export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma),
@@ -14,11 +18,41 @@ export const authOptions: NextAuthOptions = {
       clientSecret: process.env.AZURE_AD_CLIENT_SECRET ?? "",
       tenantId: tenantId ?? "common",
       authorization: { params: { scope: "openid profile email User.Read" } }
+    }),
+    CredentialsProvider({
+      name: "Usuário e senha",
+      credentials: {
+        username: { label: "Usuário", type: "text", placeholder: "seu.usuario" },
+        password: { label: "Senha", type: "password" }
+      },
+      async authorize(credentials) {
+        const username = credentials?.username?.trim().toLowerCase();
+        const password = credentials?.password ?? "";
+        if (!username || !password) return null;
+
+        // Convenience account for local development only. Never enable this bypass in production.
+        if (process.env.NODE_ENV !== "production" && username === "admin" && password === "admin") {
+          const passwordHash = await hash("admin", 12);
+          const devAdmin = await prisma.user.upsert({
+            where: { username: "admin" },
+            update: { role: "ADMIN", active: true },
+            create: { username: "admin", email: "admin@localhost", name: "Admin de desenvolvimento", passwordHash, role: "ADMIN", active: true }
+          });
+          return { id: devAdmin.id, name: devAdmin.name, email: devAdmin.email, role: devAdmin.role } as AppUser;
+        }
+
+        const dbUser = await prisma.user.findUnique({ where: { username } });
+        if (!dbUser || !dbUser.active || !dbUser.passwordHash) return null;
+        const valid = await compare(password, dbUser.passwordHash);
+        if (!valid) return null;
+        return { id: dbUser.id, name: dbUser.name, email: dbUser.email, role: dbUser.role } as AppUser;
+      }
     })
   ],
-  session: { strategy: "database" },
+  session: { strategy: "jwt" },
   callbacks: {
-    async signIn({ user, profile }) {
+    async signIn({ user, account, profile }) {
+      if (account?.provider === "credentials") return true;
       if (!tenantId) return false;
       const claims = profile as { tid?: string; oid?: string; preferred_username?: string; email?: string } | undefined;
       // Fail closed: the tenant claim must exist and match the configured Prezensa tenant.
@@ -35,12 +69,23 @@ export const authOptions: NextAuthOptions = {
       }
       return true;
     },
-    async session({ session, user }) {
-      if (session.user) {
-        const dbUser = await prisma.user.findUnique({ where: { id: user.id }, select: { role: true, active: true, id: true } });
+    async jwt({ token, user }) {
+      if (user) {
+        const dbUser = await prisma.user.findUnique({ where: { id: user.id }, select: { id: true, role: true, active: true } });
         if (!dbUser?.active) throw new Error("USER_DISABLED");
-        (session.user as typeof session.user & { id: string; role: string }).id = user.id;
-        (session.user as typeof session.user & { id: string; role: string }).role = dbUser.role;
+        token.sub = dbUser.id;
+        token.role = dbUser.role;
+      } else if (token.sub) {
+        const dbUser = await prisma.user.findUnique({ where: { id: token.sub }, select: { role: true, active: true } });
+        if (!dbUser?.active) throw new Error("USER_DISABLED");
+        token.role = dbUser.role;
+      }
+      return token;
+    },
+    async session({ session, token }) {
+      if (session.user && token.sub) {
+        session.user.id = token.sub;
+        session.user.role = (token.role as "ADMIN" | "EXECUTIVE" | "COLLABORATOR") ?? "COLLABORATOR";
       }
       return session;
     }
