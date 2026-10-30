@@ -3,7 +3,7 @@ on:
   pull_request:
     branches: [main]
   push:
-    branches: [feat/m365-scorecard-persistence]
+    branches: [remove-authentication]
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -14,9 +14,4 @@ jobs:
       - run: npx prisma generate
       - run: npm run build
         env:
-          NEXTAUTH_URL: http://localhost:3000
-          NEXTAUTH_SECRET: ci-placeholder-secret-not-for-production
-          AZURE_AD_CLIENT_ID: ci-placeholder
-          AZURE_AD_CLIENT_SECRET: ci-placeholder
-          AZURE_AD_TENANT_ID: 00000000-0000-0000-0000-000000000000
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/prezensa

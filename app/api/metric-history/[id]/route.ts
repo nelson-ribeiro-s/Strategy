@@ -1,15 +1,9 @@
-import { getServerSession } from "next-auth";
 import { NextRequest, NextResponse } from "next/server";
-import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
 type Context = { params: Promise<{ id: string }> };
-const canEdit = (role?: string) => role === "ADMIN" || role === "EXECUTIVE";
 
 export async function PATCH(request: NextRequest, context: Context) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user?.id) return NextResponse.json({ error: "Não autenticado" }, { status: 401 });
-  if (!canEdit(session.user.role)) return NextResponse.json({ error: "Sem permissão para editar histórico" }, { status: 403 });
   const { id } = await context.params;
   const body = await request.json() as { value?: unknown; recordedAt?: unknown; note?: unknown };
   const data: { value?: number; recordedAt?: Date; note?: string | null } = {};
@@ -30,7 +24,7 @@ export async function PATCH(request: NextRequest, context: Context) {
   try {
     const entry = await prisma.$transaction(async tx => {
       const updated = await tx.metricHistory.update({ where: { id }, data });
-      await tx.auditEvent.create({ data: { userId: session.user!.id, action: "UPDATE_HISTORY", entityType: "MetricHistory", entityId: id, details: data } });
+      await tx.auditEvent.create({ data: { userId: null, action: "UPDATE_HISTORY", entityType: "MetricHistory", entityId: id, details: data } });
       return updated;
     });
     return NextResponse.json({ entry });
@@ -40,14 +34,11 @@ export async function PATCH(request: NextRequest, context: Context) {
 }
 
 export async function DELETE(_request: NextRequest, context: Context) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user?.id) return NextResponse.json({ error: "Não autenticado" }, { status: 401 });
-  if (!canEdit(session.user.role)) return NextResponse.json({ error: "Sem permissão para excluir histórico" }, { status: 403 });
   const { id } = await context.params;
   try {
     await prisma.$transaction(async tx => {
       const entry = await tx.metricHistory.delete({ where: { id } });
-      await tx.auditEvent.create({ data: { userId: session.user!.id, action: "DELETE_HISTORY", entityType: "MetricHistory", entityId: id, details: { metricId: entry.metricId, value: entry.value } } });
+      await tx.auditEvent.create({ data: { userId: null, action: "DELETE_HISTORY", entityType: "MetricHistory", entityId: id, details: { metricId: entry.metricId, value: entry.value } } });
     });
     return NextResponse.json({ ok: true });
   } catch {

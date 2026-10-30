@@ -1,13 +1,8 @@
-import { getServerSession } from "next-auth";
 import { NextRequest, NextResponse } from "next/server";
-import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
 type Context = { params: Promise<{ id: string }> };
 export async function PATCH(request: NextRequest, context: Context) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user?.id) return NextResponse.json({ error: "Não autenticado" }, { status: 401 });
-  if (!["ADMIN", "EXECUTIVE"].includes(session.user.role)) return NextResponse.json({ error: "Sem permissão para editar objetivos" }, { status: 403 });
   const { id } = await context.params;
   const body = await request.json() as { name?: unknown; description?: unknown };
   const data: { name?: string; description?: string | null } = {};
@@ -23,7 +18,7 @@ export async function PATCH(request: NextRequest, context: Context) {
   try {
     const objective = await prisma.$transaction(async tx => {
       const updated = await tx.objective.update({ where: { id }, data });
-      await tx.auditEvent.create({ data: { userId: session.user!.id, action: "UPDATE", entityType: "Objective", entityId: id, details: data } });
+      await tx.auditEvent.create({ data: { userId: null, action: "UPDATE", entityType: "Objective", entityId: id, details: data } });
       return updated;
     });
     return NextResponse.json({ objective });
