@@ -12,7 +12,7 @@ export default function HomePage() {
         <div><div className="eyebrow">PREZENSA · EXECUTIVE SYSTEM</div><h1>Scorecard estratégico</h1><p>Metas, valores atuais e histórico compartilhados com a equipe.</p></div>
       </header>
       <Scorecard />
-      <footer>Os dados são salvos no PostgreSQL. Alterações de metas e valores ficam registradas no histórico e na auditoria.</footer>
+      <footer>Os dados de demonstração começam fixos no código. As alterações ficam salvas apenas neste navegador.</footer>
     </section>
   </main>;
 }

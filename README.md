@@ -1,40 +1,26 @@
 # Prezensa Management System
 
-Aplicação de gestão executiva da Prezensa. A interface atual usa Next.js App Router e PostgreSQL com Prisma. O Scorecard abre diretamente, sem login: qualquer pessoa que consiga acessar a URL pode consultar e alterar objetivos, metas, valores atuais e histórico.
+Aplicação de gestão executiva da Prezensa. O Scorecard abre sem login e usa dados iniciais fixos no código.
 
 ## Funcionalidades
 
-- Scorecard de objetivos e indicadores.
-- Edição persistida de objetivos, indicadores, unidades, metas e valores atuais.
-- Inclusão, edição e exclusão de registros históricos.
-- Auditoria das alterações e persistência no PostgreSQL.
+- Objetivos, indicadores, metas, valores atuais e histórico de demonstração.
+- Edição de objetivos, indicadores e histórico no navegador.
+- As alterações são salvas no `localStorage` do navegador atual. Elas não são enviadas a um servidor nem compartilhadas com outros visitantes ou dispositivos. Limpar os dados do navegador restaura os valores iniciais.
 - Acesso ao protótipo legado para Cockpit, Rocks, Issues e L1.
 
-## Requisitos
+## Desenvolvimento e deploy
 
 - Node.js 20+
-- PostgreSQL (ex.: Supabase)
+- `npm install`
+- `npm run dev`
+- `npm run build` para validar a versão de produção
 
-## Configuração local
+Não é necessário configurar banco de dados ou variáveis de ambiente para o Scorecard. A aplicação continua pública e qualquer visitante pode visualizar os valores de demonstração e editar sua própria cópia local no navegador.
 
-1. Copie `.env.example` para `.env.local` e informe `DATABASE_URL`.
-2. Instale dependências: `npm install`.
-3. Gere o Prisma Client e sincronize o schema: `npm run db:generate && npm run db:push`.
-4. (Opcional) Carregue indicadores de demonstração: `npm run db:seed`. Esses valores não são dados reais da Prezensa.
-5. Execute `npm run dev`.
+## Dados
 
-## Implantação
-
-Configure somente `DATABASE_URL` no ambiente de implantação. O build executa `prisma generate` e `next build`. Depois de preparar o PostgreSQL, aplique o schema com `npm run db:push` ou use o fluxo de schema adotado pela equipe.
-
-**A aplicação não tem autenticação nem autorização.** Qualquer pessoa com acesso à URL pode visualizar e editar os dados. Restrinja a exposição da URL na infraestrutura caso isso não seja desejado. Esta alteração não faz deploy.
-
-## Persistência de metas e histórico
-
-- `Metric.targetValue` e `Metric.currentValue` são armazenados no PostgreSQL.
-- Mudanças do valor atual geram uma linha em `MetricHistory` na mesma transação.
-- Registros históricos podem ser adicionados, editados e excluídos sem login.
-- Alterações são registradas em `AuditEvent`; sem identidade autenticada, novas entradas não identificam uma conta de usuário. IDs antigos de autoria permanecem como dados históricos sem relação com uma tabela de usuários.
+Os valores fixos são demonstrativos e ficam em `lib/scorecard-data.ts`. Para trocar os valores iniciais, edite esse arquivo. Alterações feitas pelo usuário são locais ao navegador e não modificam os dados fixos do código.
 
 ## Nota sobre o protótipo
 
