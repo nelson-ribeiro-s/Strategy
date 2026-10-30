@@ -40,8 +40,11 @@ Aplicação em evolução para gestão executiva da Prezensa. A interface anteri
 ## Segurança e perfis
 
 - Acesso restrito ao tenant configurado; o callback valida o claim `tid`.
-- O primeiro administrador precisa ser configurado em `PREZENSA_ADMIN_EMAILS` antes do primeiro login. Depois, altere papéis diretamente no banco ou pela futura tela administrativa.
+- Para criar o primeiro administrador em produção, configure `BOOTSTRAP_ADMIN_USERNAME` e `BOOTSTRAP_ADMIN_PASSWORD` no Vercel antes do primeiro login por usuário e senha. Na primeira autenticação correspondente, a aplicação cria um usuário `ADMIN` com hash bcrypt somente se ainda não existir nenhum `ADMIN`.
+- O bootstrap é de uso único: não altera nem redefine usuário, senha ou papel de contas existentes. Depois que houver um administrador, as variáveis deixam de criar contas; mudanças de acesso devem ser feitas por um administrador.
+- Não use `PREZENSA_ADMIN_EMAILS` para promover contas automaticamente. O login Microsoft cria contas como `COLLABORATOR`; a atribuição de papel é administrativa.
 - Não comite segredos. Configure as variáveis no ambiente de deploy.
+- No Vercel, configure também `DATABASE_URL`, `NEXTAUTH_SECRET`, `NEXTAUTH_URL` e as três variáveis `AZURE_AD_*` necessárias ao login Microsoft. Cadastre as duas variáveis `BOOTSTRAP_ADMIN_*` como Production, faça redeploy e remova a senha de bootstrap do Vercel depois de confirmar o primeiro acesso.
 - A API valida permissões no servidor; esconder controles no navegador não é suficiente.
 - Antes de produção, revisar consentimentos Entra, política de sessão, logs, backups, política de retenção e testes de segurança.
 

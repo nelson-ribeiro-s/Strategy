@@ -10,6 +10,34 @@ if (!tenantId) console.warn("AZURE_AD_TENANT_ID is not configured; Microsoft sig
 
 type AppUser = NextAuthUser & { role?: "ADMIN" | "EXECUTIVE" | "COLLABORATOR" };
 
+async function bootstrapFirstAdmin(username: string, password: string) {
+  const configuredUsername = process.env.BOOTSTRAP_ADMIN_USERNAME?.trim().toLowerCase();
+  const configuredPassword = process.env.BOOTSTRAP_ADMIN_PASSWORD;
+  if (!configuredUsername || !configuredPassword || username !== configuredUsername || password !== configuredPassword) return;
+
+  const passwordHash = await hash(configuredPassword, 12);
+  try {
+    await prisma.$transaction(async (tx) => {
+      const adminExists = await tx.user.findFirst({ where: { role: "ADMIN" }, select: { id: true } });
+      if (adminExists) return;
+      await tx.user.create({
+        data: {
+          username: configuredUsername,
+          name: "Administrador",
+          passwordHash,
+          role: "ADMIN",
+          active: true
+        }
+      });
+    }, { isolationLevel: "Serializable" });
+  } catch (error) {
+    // A concurrent bootstrap may win the serializable transaction or username unique constraint.
+    // In either case, never update or reset an existing account.
+    const code = (error as { code?: string }).code;
+    if (code !== "P2002" && code !== "P2034") throw error;
+  }
+}
+
 export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma),
   providers: [
@@ -29,6 +57,8 @@ export const authOptions: NextAuthOptions = {
         const username = credentials?.username?.trim().toLowerCase();
         const password = credentials?.password ?? "";
         if (!username || !password) return null;
+
+        await bootstrapFirstAdmin(username, password);
 
         // Convenience account for local development only. Never enable this bypass in production.
         if (process.env.NODE_ENV !== "production" && username === "admin" && password === "admin") {
@@ -59,12 +89,9 @@ export const authOptions: NextAuthOptions = {
       if (!claims?.tid || claims.tid !== tenantId) return false;
       const email = (user.email || claims.preferred_username || claims.email || "").toLowerCase();
       if (!email) return false;
-      const adminEmails = (process.env.PREZENSA_ADMIN_EMAILS ?? "").split(",").map(v => v.trim().toLowerCase()).filter(Boolean);
       const existing = await prisma.user.findUnique({ where: { email } });
       if (existing && !existing.active) return false;
-      if (existing && adminEmails.includes(email) && existing.role !== "ADMIN") {
-        await prisma.user.update({ where: { id: existing.id }, data: { role: "ADMIN", ...(claims.oid ? { entraObjectId: claims.oid } : {}) } });
-      } else if (existing && claims.oid && existing.entraObjectId !== claims.oid) {
+      if (existing && claims.oid && existing.entraObjectId !== claims.oid) {
         await prisma.user.update({ where: { id: existing.id }, data: { entraObjectId: claims.oid } });
       }
       return true;
@@ -88,15 +115,6 @@ export const authOptions: NextAuthOptions = {
         session.user.role = (token.role as "ADMIN" | "EXECUTIVE" | "COLLABORATOR") ?? "COLLABORATOR";
       }
       return session;
-    }
-  },
-  events: {
-    async createUser({ user }) {
-      const email = (user.email ?? "").toLowerCase();
-      const adminEmails = (process.env.PREZENSA_ADMIN_EMAILS ?? "").split(",").map(v => v.trim().toLowerCase()).filter(Boolean);
-      if (email && adminEmails.includes(email)) {
-        await prisma.user.update({ where: { id: user.id }, data: { role: "ADMIN" } });
-      }
     }
   },
   pages: { signIn: "/login" }
